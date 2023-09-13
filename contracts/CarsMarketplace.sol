@@ -8,82 +8,89 @@ import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import "hardhat/console.sol";
 
-contract NFTCarsMarketplace is Ownable {
+contract CarsMarketplace is Ownable {
     // interface id for erc721: 0x80ac58cd
     using Counters for Counters.Counter;
-    Counters.Counter private tokenIds; // amount of car NFTs that have been listed
-
+    Counters.Counter public carCount; // amount of car NFTs that have been listed
+    
     struct Car {
         address listingOwner;
         address contractAddress; // address of the NFTs contract
         uint256 nativeId; // tokenId of the NFT in its contract
         uint256 cost; // listPrice
-        bool isListed; // whether or not the token is avaliable to buy
+        bool isListed; // whether or not the car is avaliable to buy
     }
 
     // note mileage should not be kept in NFT as it changes
 
-    mapping(address => uint256) balances;
     mapping(uint256 => Car) cars;
 
     error NotAuthorized();
+    error ContractNotAuthorized();
     error InsufficientFunds();
     error NotAvaliable();
     error TransactionFailed();
     error NotERC721();
+    error InvalidTokenId();
 
+    event CarListed(uint cardId, address carOwner);
     event CarSaleExecuted(address from, address to, uint256 listingId);
 
     constructor() Ownable() {}
 
-    modifier validTokenId(uint256 _tokenId) {
-        if (_tokenId > tokenIds.current() || _tokenId == 0) {
-            revert NotAvaliable();
+    modifier validCarId(uint256 _carId) {
+        if (_carId > carCount.current() || _carId == 0) {
+            revert InvalidTokenId();
         }
         _;
     }
 
     function listCar(
         address _contractAddress,
-        uint _tokenId,
+        uint _carId,
         uint _cost
     ) external {
         // Checks to see if contract is ERC721
         if (!ERC165Checker.supportsInterface(_contractAddress, 0x80ac58cd)) {
             revert NotERC721();
         }
-        // Checks to see if the msg.sender is the owner of the token
-        address tokenOwner = IERC721(_contractAddress).ownerOf(_tokenId);
-        if (
-            msg.sender != tokenOwner ||
-            !IERC721(_contractAddress).isApprovedForAll(tokenOwner, msg.sender)
-        ) {
-            revert NotAuthorized();
+        // Checks to see if the msg.sender is the owner of the car
+        address carOwner = IERC721(_contractAddress).ownerOf(_carId);
+        if (msg.sender != carOwner) {
+            if (
+                !IERC721(_contractAddress).isApprovedForAll(
+                    carOwner,
+                    msg.sender
+                )
+            ) {
+                revert NotAuthorized();
+            }
         }
 
         // Checks to see if contract is approved to manage
         if (
             !IERC721(_contractAddress).isApprovedForAll(
-                tokenOwner,
+                carOwner,
                 address(this)
             )
         ) {
-            revert NotAuthorized();
+            revert ContractNotAuthorized();
         }
 
-        tokenIds.increment();
-        uint newTokenId = tokenIds.current();
-        cars[newTokenId] = Car(
+        carCount.increment();
+        uint newCarId = carCount.current();
+        cars[newCarId] = Car(
             msg.sender,
             _contractAddress,
-            _tokenId,
+            _carId,
             _cost,
             true
         );
+        emit CarListed(newCarId, carOwner);
     }
 
-    function buyCar(uint _tokenId) external payable validTokenId(_tokenId) {
-        Car storage car = cars[_tokenId];
+    function buyCar(uint _carId) external payable validCarId(_carId) {
+        Car storage car = cars[_carId];
 
         if (!car.isListed) {
             revert NotAvaliable();
@@ -95,76 +102,69 @@ contract NFTCarsMarketplace is Ownable {
 
         address carOwner = getCarOwnerViaContractAddress(
             car.contractAddress,
-            _tokenId
+            _carId
         );
 
         if (car.listingOwner != carOwner) {
             revert NotAuthorized();
         }
 
-        car.isListed = false;
+        (bool sent, ) = carOwner.call{value: msg.value}("");
+        if (!sent) {
+            revert TransactionFailed();
+        }
 
-        balances[carOwner] += msg.value;
+        car.isListed = false;
+        car.listingOwner = msg.sender;
 
         IERC721(car.contractAddress).safeTransferFrom(
             carOwner,
             msg.sender,
-            _tokenId
+            _carId
         );
-        emit CarSaleExecuted(carOwner, msg.sender, _tokenId);
+        emit CarSaleExecuted(carOwner, msg.sender, _carId);
     }
 
     function updateCost(
-        uint _tokenId,
-        uint _updateCost
-    ) external validTokenId(_tokenId) {
-        Car storage car = cars[_tokenId];
-        if (
-            checkIfAddressIsNotCarOwner(msg.sender, car.contractAddress, _tokenId)
-        ) {
-            revert NotAuthorized();
-        }
-        if (car.cost != _updateCost) {
-            car.cost = _updateCost;
-        }
-    }
-
-    function makeUnavailable(uint _tokenId) external validTokenId(_tokenId) {
-        Car storage car = cars[_tokenId];
-        if (
-            checkIfAddressIsNotCarOwner(msg.sender, car.contractAddress, _tokenId)
-        ) {
-            revert NotAuthorized();
-        }
-        cars[_tokenId].isListed = false;
-    }
-
-    function makeAvailable(uint _tokenId, uint _cost) external {
-        Car storage car = cars[_tokenId];
-        car.isListed = true;
+        uint _carId,
+        uint _updatedCost
+    ) external validCarId(_carId) {
+        Car storage car = cars[_carId];
         if (
             checkIfAddressIsNotCarOwner(
-                car.listingOwner,
+                msg.sender,
                 car.contractAddress,
-                _tokenId
+                _carId
             )
         ) {
-            car.listingOwner = msg.sender;
+            revert NotAuthorized();
         }
+        if (car.cost != _updatedCost) {
+            car.cost = _updatedCost;
+        }
+    }
 
-        if (_cost != car.cost) {
-            car.isListed = true;
+    function updateAvailability(
+        uint _carId,
+        bool listed
+    ) external validCarId(_carId) {
+        Car storage car = cars[_carId];
+        if (
+            checkIfAddressIsNotCarOwner(
+                msg.sender,
+                car.contractAddress,
+                _carId
+            )
+        ) {
+            revert NotAuthorized();
         }
+        cars[_carId].isListed = listed;
     }
 
     function getCarDetails(
-        uint _tokenId
-    ) external view validTokenId(_tokenId) returns (Car memory) {
-        return cars[_tokenId];
-    }
-
-    function getBalance(address _addr) external view returns (uint) {
-        return balances[_addr];
+        uint _carId
+    ) external view validCarId(_carId) returns (Car memory) {
+        return cars[_carId];
     }
 
     function checkIfAddressIsNotCarOwner(

@@ -3,8 +3,9 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "hardhat/console.sol";
 
-contract NFTCars is ERC721URIStorage, Pausable {
+contract Cars is ERC721URIStorage, Pausable {
     address public owner;
 
     uint public tokenSupply;
@@ -26,9 +27,10 @@ contract NFTCars is ERC721URIStorage, Pausable {
     }
 
     function burn(uint tokenId) public {
-        if (_isApprovedOrOwner(msg.sender, tokenId)) {
-           revert NotApproved();
+        if (!_isApprovedOrOwner(msg.sender, tokenId)) {
+            revert NotApproved();
         }
-         _burn(tokenId);
+        tokenSupply--;
+        _burn(tokenId);
     }
 }
