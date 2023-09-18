@@ -15,7 +15,7 @@ contract CarsMarketplace is Ownable {
     
     struct Car {
         address listingOwner;
-        address contractAddress; // address of the NFTs contract
+        address carAddress; // address of the NFTs contract
         uint256 nativeId; // tokenId of the NFT in its contract
         uint256 cost; // listPrice
         bool isListed; // whether or not the car is avaliable to buy
@@ -46,19 +46,19 @@ contract CarsMarketplace is Ownable {
     }
 
     function listCar(
-        address _contractAddress,
+        address _carAddress,
         uint _carId,
         uint _cost
     ) external {
         // Checks to see if contract is ERC721
-        if (!ERC165Checker.supportsInterface(_contractAddress, 0x80ac58cd)) {
+        if (!ERC165Checker.supportsInterface(_carAddress, 0x80ac58cd)) {
             revert NotERC721();
         }
         // Checks to see if the msg.sender is the owner of the car
-        address carOwner = IERC721(_contractAddress).ownerOf(_carId);
+        address carOwner = IERC721(_carAddress).ownerOf(_carId);
         if (msg.sender != carOwner) {
             if (
-                !IERC721(_contractAddress).isApprovedForAll(
+                !IERC721(_carAddress).isApprovedForAll(
                     carOwner,
                     msg.sender
                 )
@@ -69,7 +69,7 @@ contract CarsMarketplace is Ownable {
 
         // Checks to see if contract is approved to manage
         if (
-            !IERC721(_contractAddress).isApprovedForAll(
+            !IERC721(_carAddress).isApprovedForAll(
                 carOwner,
                 address(this)
             )
@@ -81,7 +81,7 @@ contract CarsMarketplace is Ownable {
         uint newCarId = carCount.current();
         cars[newCarId] = Car(
             msg.sender,
-            _contractAddress,
+            _carAddress,
             _carId,
             _cost,
             true
@@ -100,8 +100,8 @@ contract CarsMarketplace is Ownable {
             revert InsufficientFunds();
         }
 
-        address carOwner = getCarOwnerViaContractAddress(
-            car.contractAddress,
+        address carOwner = getCarOwnerViaAddress(
+            car.carAddress,
             _carId
         );
 
@@ -117,7 +117,7 @@ contract CarsMarketplace is Ownable {
         car.isListed = false;
         car.listingOwner = msg.sender;
 
-        IERC721(car.contractAddress).safeTransferFrom(
+        IERC721(car.carAddress).safeTransferFrom(
             carOwner,
             msg.sender,
             _carId
@@ -126,63 +126,63 @@ contract CarsMarketplace is Ownable {
     }
 
     function updateCost(
-        uint _carId,
-        uint _updatedCost
-    ) external validCarId(_carId) {
-        Car storage car = cars[_carId];
+        uint carId,
+        uint updatedCost
+    ) external validCarId(carId) {
+        Car storage car = cars[carId];
         if (
             checkIfAddressIsNotCarOwner(
                 msg.sender,
-                car.contractAddress,
-                _carId
+                car.carAddress,
+                carId
             )
         ) {
             revert NotAuthorized();
         }
-        if (car.cost != _updatedCost) {
-            car.cost = _updatedCost;
+        if (car.cost != updatedCost) {
+            car.cost = updatedCost;
         }
     }
 
     function updateAvailability(
-        uint _carId,
+        uint carId,
         bool listed
-    ) external validCarId(_carId) {
-        Car storage car = cars[_carId];
+    ) external validCarId(carId) {
+        Car storage car = cars[carId];
         if (
             checkIfAddressIsNotCarOwner(
                 msg.sender,
-                car.contractAddress,
-                _carId
+                car.carAddress,
+                carId
             )
         ) {
             revert NotAuthorized();
         }
-        cars[_carId].isListed = listed;
+        cars[carId].isListed = listed;
     }
 
     function getCarDetails(
-        uint _carId
-    ) external view validCarId(_carId) returns (Car memory) {
-        return cars[_carId];
+        uint carId
+    ) external view validCarId(carId) returns (Car memory) {
+        return cars[carId];
     }
 
     function checkIfAddressIsNotCarOwner(
         address sender,
-        address contractAddress,
+        address carAddress,
         uint tokenId
     ) internal view returns (bool) {
-        if (sender != getCarOwnerViaContractAddress(contractAddress, tokenId)) {
+        if (sender != getCarOwnerViaAddress(carAddress, tokenId)) {
             return true;
         } else {
             return false;
         }
     }
 
-    function getCarOwnerViaContractAddress(
-        address contractAddress,
+    function getCarOwnerViaAddress(
+        address carAddress,
         uint tokenId
     ) public view returns (address) {
-        return IERC721(contractAddress).ownerOf(tokenId);
+        return IERC721(carAddress).ownerOf(tokenId);
     }
 }

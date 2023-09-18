@@ -1,11 +1,12 @@
+# Car Dealership NFT Project
 
-# Sample Hardhat Project
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+## Introduction
 
-Try running some of the following tasks:
+Welcome to the Car Dealership NFT Project! This project allows users to register their car NFTs (Non-Fungible Tokens) and enables buyers to purchase these NFTs through a decentralized marketplace.
 
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.js
+## Features
+
+- Car Listing: Sellers can register their car NFTs on the platform, providing details and images for potential buyers to view.
+- Car Buying: Buyers can browse the marketplace, view listings, and purchase car NFTs using cryptocurrency.
+- Cost Update - A seller can update the cost of his/her car before sale.
+- Availablility Update - Sellers can update the availablility of their cars.
